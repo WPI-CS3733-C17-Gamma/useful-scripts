@@ -1,27 +1,38 @@
 #!/usr/bin/env python3
+import re
+from collections import defaultdict
 
-rooms = {}
+class Entry:
+    def __init__(self, string):
+        parts = string.replace("'", "''").split(", ")
+        if len(parts) >= 3:
+            self.title = ", ".join(parts[2:])
+        else:
+            self.title = ""
+        self.name = ", ".join(parts[:2])
 
+outString = ""
+roomList = defaultdict(list)
 
-# start high to not clobber other things
-eID = 1000
+with open("/home/adam/scratch/HospitalDirectory.csv") as f:
+    for line in f:
+        name, rooms = line.strip().split("\t")
+        for room in re.split(r" and |/|, ", rooms):
+            roomList[room].append(Entry(name.strip()))
+
+roomIDs = {}
 rID = 1000
+eID = 1000
+for room in roomList.keys():
+    rID += 1
+    roomIDs[room] = rID
+    outString += f"INSERT INTO Rooms (rID, name) VALUES ({rID}, '{room}');\n"
 
-inputFile = "test.csv"
-outputFile = "test.sql"
+for room, entries in roomList.items():
+    for entry in entries:
+        outString += f"INSERT INTO Entries (eID, name, title) VALUES ({eID}, '{entry.name}', '{entry.title}')\n"
+        outString += f"INSERT INTO RoomEntryAssoc (eID, rID) VALUES ({eID}, {roomIDs[room]});\n"
+        eID += 1
 
-with open(inputFile) as f:
-    with open(outputFile, "w+") as outF:
-        outF.write("connect 'jdbc:derby:main;create=true';\n")
-        for line in f:
-            eID += 1
-            parts = line.split("	")
-            eName = parts[0].replace("'", "")
-            room = parts[1].strip()
-            if (room not in rooms):
-                rID += 1
-                outF.write(f"insert into Rooms (rID, name) values ({rID}, '{room}');\n")
-            rooms[room] = rID
 
-            outF.write(f"insert into Entries (eID, name) values ({eID}, '{eName}');\n")
-            outF.write(f"insert into RoomEntryAssoc (eID, rID) values ({eID}, {rID});\n")
+print(outString)
